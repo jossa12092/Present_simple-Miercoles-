@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+<title>Present Simple — A1–A1+ (Lexical verbs only) • v8.9</title>
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;background:#0a0f1a}
+  body{-webkit-user-select:none;-moz-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-text-size-adjust:100%}
+  *{-webkit-tap-highlight-color:transparent}
+  #answerBox{
+    position: fixed; left: 0; top: 0; width: 0; height: 0; opacity: 0;
+    border: none; outline: none; font-family: 'Poppins', system-ui, -apple-system, 'Segoe UI', Roboto, Arial, 'Noto Sans', sans-serif;
+    font-weight: 700; font-size: 13px; color: #fff;
+    background: rgba(255,255,255,0.12); backdrop-filter: blur(8px);
+    border-radius: 14px; padding: 10px 12px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.35), inset 0 0 0 1px rgba(255,255,255,0.22);
+  }
+  #answerBox.visible{opacity:1}
+  #answerBox::placeholder{color:rgba(255,255,255,0.55)}
+</style>
+</head>
+<body>
+<canvas id="app" role="application" aria-label="Present Simple Quiz"></canvas>
+<input id="answerBox" type="text" inputmode="text" autocomplete="off" autocorrect="off" autocapitalize="sentences" spellcheck="false" />
+<script>
+(() => {
+"use strict";
+
+/*================ CONFIG ================*/
+const ACCESS_CODE = "1100";
+const SAFE_MODE   = /[?&]safe=1/.test(location.search);
+const QUESTIONS_PER_RUN = 25;
+const TIME_PER_Q_DEFAULT = 60_000;
+const TIME_PER_Q_WRITE   = 120_000;
+const TITLE = "Present Simple — A1–A1+ (Lexical verbs only)";
+const WHITE = "rgba(255,255,255,0.96)", SUB="rgba(255,255,255,0.82)";
+const BG   = {c1:"#0a0f1a", c2:"#0e1b29", c3:"#102235"};
+const GLASS = [
+  {f:"rgba(255,255,255,0.15)", s:"rgba(255,255,255,0.22)"},
+  {f:"rgba(255,225,0,0.12)",   s:"rgba(255,225,0,0.28)"},
+  {f:"rgba(255,120,0,0.10)",   s:"rgba(255,120,0,0.26)"},
+  {f:"rgba(255,70,70,0.10)",   s:"rgba(255,70,70,0.24)"},
+  {f:"rgba(130,200,255,0.12)", s:"rgba(130,200,255,0.26)"}
+];
+const FONT_STACK = "'Poppins', system-ui, -apple-system, 'Segoe UI', Roboto, Arial, 'Noto Sans', sans-serif";
+const BASE = 13;
+
+/*================ CANVAS ================*/
+const c = document.getElementById("app");
+const x = c.getContext("2d");
+const INPUT = document.getElementById("answerBox");
+let DPR=1, W=0, H=0;
+function resize(){
+  DPR=Math.max(1,Math.min(window.devicePixelRatio||1,3));
+  const vw=innerWidth, vh=innerHeight;
+  c.style.width=vw+"px"; c.style.height=vh+"px";
+  c.width=Math.floor(vw*DPR); c.height=Math.floor(vh*DPR);
+  W=c.width; H=c.height;
+}
+function bg(){
+  const g=x.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,BG.c1); g.addColorStop(0.6,BG.c2); g.addColorStop(1,BG.c3);
+  x.fillStyle=g; x.fillRect(0,0,W,H);
+}
+function setFont(px=BASE*DPR, weight=700){ x.font = `${weight} ${px}px ${FONT_STACK}`; }
+function rrect(a,b,w,h,r){ x.beginPath(); const R=Math.min(r,w/2,h/2);
+  x.moveTo(a+R,b); x.arcTo(a+w,b,a+w,b+h,R); x.arcTo(a+w,b+h,a,b+h,R);
+  x.arcTo(a,b+h,a,b,R); x.arcTo(a,b,a+w,b,R); x.closePath();
+}
+function glass(ax,ay,w,h,idx=0,sh=true){
+  const p=GLASS[idx%GLASS.length];
+  x.save(); if(sh){ x.shadowColor="rgba(0,0,0,0.35)"; x.shadowBlur=16*DPR; x.shadowOffsetY=3*DPR; }
+  rrect(ax,ay,w,h,14*DPR); x.fillStyle=p.f; x.fill(); x.restore();
+  x.save(); rrect(ax+1*DPR,ay+1*DPR,w-2*DPR,h-2*DPR,14*DPR-1); x.strokeStyle=p.s; x.lineWidth=1.2*DPR; x.stroke(); x.restore();
+}
+function wrap(t,maxW,px=BASE*DPR){ setFont(px,900); const ws=String(t).split(/\s+/), L=[]; let cur="";
+  for(const w of ws){ const nx=cur?cur+" "+w:w; if(x.measureText(nx).width<=maxW) cur=nx; else { if(cur)L.push(cur); cur=w; } }
+  if(cur) L.push(cur); return L;
+}
+function pick(a){ return a[(Math.random()*a.length)|0]; }
+function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=(Math.random()*(i+1))|0; [a[i],a[j]]=[a[j],a[i]]; } return a; }
+
+/*================ DATA (same) ================*/
+const verbs=["go","come","make","take","see","get","give","tell","call","try","ask","work","look","use","find","put","keep","begin","help","talk","turn","start","show","play","run","move","write","read","open","close","walk","drive","ride","eat","drink","cook","clean","wash","buy","sell"];
+const advs=["always","usually","often","sometimes","rarely","never"];
+const times=["every day","on Mondays","on weekends","in the morning","in the evening","after school","before work"];
+const subs=[
+  {s:"I",neg:"don't",p3:false},{s:"You",neg:"don't",p3:false},
+  {s:"We",neg:"don't",p3:false},{s:"They",neg:"don't",p3:false},
+  {s:"He",neg:"doesn't",p3:true},{s:"She",neg:"doesn't",p3:true},{s:"It",neg:"doesn't",p3:true}
+];
+const comp={
+  read:["the news","books","the menu","a text message"],
+  work:["in an office","at a shop","at home"],
+  play:["soccer","the guitar","tennis"],
+  eat:["breakfast","lunch","dinner"],
+  drink:["water","tea","coffee"],
+  go:["to school","to work","home"],
+  come:["home","to class","to my house"],
+  make:["dinner","a cake","breakfast"],
+  take:["the bus","a photo"],
+  see:["a friend","the doctor"],
+  get:["up early","ready"],
+  give:["a present","money"],
+  tell:["a story","the truth"],
+  call:["my mom","a friend"],
+  try:["again","to study"],
+  ask:["a question","for help"],
+  look:["at the board","for my keys"],
+  use:["a computer","a phone"],
+  find:["my phone","the keys"],
+  put:["the book on the table","the phone in my bag"],
+  keep:["the room clean","quiet"],
+  help:["my dad","my friend"],
+  talk:["to my friend","on the phone"],
+  start:["work at nine","class at eight"],
+  show:["the picture","my ID"],
+  run:["in the park","every morning"],
+  write:["a letter","an email"],
+  open:["the door","the window"],
+  close:["the window","the door"],
+  walk:["to school","home"],
+  drive:["to work","a car"],
+  ride:["a bike","a bus"],
+  cook:["dinner","rice"],
+  clean:["the room","the kitchen"],
+  wash:["the car","the dishes"],
+  buy:["food","clothes"],
+  sell:["books","fruit"]
+};
+function p3(v){ if (/(?:ch|sh|ss|x|z|o)$/i.test(v)) return v+"es";
+  if (v.endsWith("y") && !"aeiou".includes(v.slice(-2,-1))) return v.slice(0,-1)+"ies";
+  return v+"s";
+}
+function compPick(v){ return pick(comp[v] || ["at home"]); }
+
+/*================ BUILDERS (same) ================*/
+function buildMCQ(){
+  const subj=pick(subs), v=pick(verbs), c=compPick(v), ad=pick(advs), tm=pick(times);
+  const type=pick(["affirm","neg","adverb"]);
+  let prompt="", pill="", options=[], answerIndex=0;
+  if(type==="affirm"){
+    prompt="Complete the sentence in the Present Simple (affirmative). Focus on 3rd-person rules.";
+    pill=`Use • Subject: ${subj.s} • Verb: ${v} • Adverb: ${ad} • Context: ${c} • Time: ${tm}`;
+    const correct=subj.p3?`${subj.s} ${ad} ${p3(v)} ${c} ${tm}.`:`${subj.s} ${ad} ${v} ${c} ${tm}.`;
+    const d1=subj.p3?`${subj.s} ${ad} ${v} ${c} ${tm}.`:`${subj.s} ${ad} ${p3(v)} ${c} ${tm}.`;
+    const d2=`${subj.s} ${v} ${ad} ${c} ${tm}.`;
+    options=shuffle([correct,d1,d2]); answerIndex=options.indexOf(correct);
+  } else if(type==="neg"){
+    const ad2=pick(advs.filter(a=>a!=="never"));
+    prompt="Choose the grammatically correct negative sentence in the Present Simple.";
+    pill=`Use • Subject: ${subj.s} • Verb: ${v} • Adverb: ${ad2} • Context: ${c} • Time: ${tm}`;
+    const correct=`${subj.s} ${ad2} ${subj.neg} ${v} ${c} ${tm}.`;
+    const d1=subj.p3?`${subj.s} ${ad2} don't ${v} ${c} ${tm}.`:`${subj.s} ${ad2} doesn't ${v} ${c} ${tm}.`;
+    const d2=`${subj.s} ${v} ${ad2} ${c} ${tm}.`;
+    options=shuffle([correct,d1,d2]); answerIndex=options.indexOf(correct);
+  } else {
+    prompt="Choose the best option: correct adverb position in Present Simple.";
+    const rightComp=compPick(v);
+    pill=`Use • Subject: ${subj.s} • Verb: ${v} • Adverb: ${ad} • Context: ${rightComp}`;
+    const correct=subj.p3?`${subj.s} ${ad} ${p3(v)} ${rightComp}.`:`${subj.s} ${ad} ${v} ${rightComp}.`;
+    const d1=`${subj.s} ${v} ${ad} ${rightComp}.`;
+    const d2=`${subj.s} ${ad} ${v}${subj.p3?"s":""}s ${rightComp}.`.replace("ss","s");
+    options=shuffle([correct,d1,d2]); answerIndex=options.indexOf(correct);
+  }
+  return {type:"mcq",prompt,pill,options,answerIndex};
+}
+function buildMatching(){
+  const s1=pick(subs), v1=pick(verbs), s2=pick(subs), v2=pick(verbs), s3=pick(subs), v3=pick(verbs);
+  const left=[`${s1.s} ___ ${compPick(v1)}.`,`${s2.s} ___ ${compPick(v2)}.`,`${s3.s} ___ ${compPick(v3)}.`];
+  const forms=[ s1.p3? p3(v1):v1, `${s2.neg} ${v2}`, `${s3.neg} ${v3}` ];
+  const right=shuffle(forms.slice());
+  const map=right.map(r=>forms.indexOf(r));
+  return {type:"matching",prompt:"Match each sentence to the correct verb form. Tap a sentence on the left, then the matching form on the right. Lines will connect your pairs.",pill:"3 pairs • One-to-one • Deranged",left,right,map,selLeft:null,selRight:null,selected:[],pairs:[],usedLeft:[false,false,false],usedRight:[false,false,false],links:[]};
+}
+function buildWrite(){
+  const subj=pick(subs), v=pick(verbs), ad=pick(advs), c=compPick(v), tm=pick(times), neg=Math.random()<0.5;
+  const prompt = neg
+    ? "Write ONE correct negative sentence in the Present Simple."
+    : "Write ONE correct affirmative sentence in the Present Simple.";
+  const pill = `Use • Subject: ${subj.s} • Verb: ${v} • Adverb: ${ad} • Context: ${c} • Time: ${tm}`;
+  return {type:"write",prompt,pill,subj,verb:v,ad,context:c,time:tm,neg};
+}
+function buildPlural(){
+  const cand=["man","woman","child","person","mouse","foot","tooth","radio","piano","photo","bus","box","watch","city","baby","book","car","table"];
+  const sing=pick(cand);
+  function pluralize(w){
+    const irregular={man:"men",woman:"women",child:"children",person:"people",mouse:"mice",foot:"feet",tooth:"teeth"};
+    if(irregular[w]) return irregular[w];
+    if(/(?:ch|sh|ss|x|z|o)$/i.test(w) && !/(photo|radio|piano)$/i.test(w)) return w+"es";
+    if(/[^aeiou]y$/i.test(w)) return w.slice(0,-1)+"ies";
+    return w+"s";
+  }
+  const correct=pluralize(sing);
+  const distractors=new Set();
+  distractors.add(sing+"s");
+  if(/o$/i.test(sing) && !/(radio|piano|photo)$/i.test(sing)) distractors.add(sing+"s"); else distractors.add(sing+"es");
+  const opts=shuffle([correct, ...Array.from(distractors)].slice(0,3));
+  return {type:"plural",prompt:"Make it plural.",pill:`Singular: ${sing}`,options:opts,answerIndex:opts.indexOf(correct)};
+}
+function buildBank(){
+  const pool=[...Array(14)].map(buildMCQ)
+    .concat([...Array(6)].map(buildMatching))
+    .concat([...Array(6)].map(buildPlural))
+    .concat([...Array(12)].map(buildWrite));
+  return shuffle(pool);
+}
+
+/*================ STATE ================*/
+const S={mode:"start",code:"",bank:[],run:[],q:0,tracker:[],correct:0,qStart:0,timerLeft:TIME_PER_Q_DEFAULT,securityArmed:false,hits:[],lastH:innerHeight,lastW:innerWidth,feedback:null,pendingAdvance:null,typing:false,vvW: (window.visualViewport? window.visualViewport.width: innerWidth), vvH: (window.visualViewport? window.visualViewport.height: innerHeight), lastFocus:0};
+
+/*================ SECURITY (keyboard-proof) ================*/
+function armSecurity(){
+  if(SAFE_MODE||S.securityArmed) return;
+  S.securityArmed=true;
+  const hardReset=()=>{ S.mode="start"; S.code=""; INPUT.classList.remove("visible"); INPUT.value=""; S.feedback=null; S.pendingAdvance=null; S.typing=false; };
+
+  const isTyping = ()=> S.typing && INPUT.classList.contains("visible") && document.activeElement===INPUT;
+  const withinGrace = ()=> (performance.now() - S.lastFocus) < 3000; // 3s grace
+
+  INPUT.addEventListener("focus", ()=>{ S.lastFocus=performance.now(); S.typing=true; }, true);
+  INPUT.addEventListener("blur",  ()=>{ /* keep S.typing=true while keyboard animates */ }, true);
+
+  // Use visualViewport to detect keyboard (iOS/Android modern)
+  if(window.visualViewport){
+    window.visualViewport.addEventListener("resize", ()=>{
+      const dH=Math.abs(window.visualViewport.height - S.vvH);
+      const dW=Math.abs(window.visualViewport.width  - S.vvW);
+      S.vvH=window.visualViewport.height; S.vvW=window.visualViewport.width;
+      const keyboardLikely = (dH>40 && dW<40) && (isTyping() || withinGrace());
+      if(keyboardLikely) return; // ignore
+      if(!isTyping() && !withinGrace()) hardReset();
+    }, {passive:true});
+    window.visualViewport.addEventListener("scroll", ()=>{
+      if(isTyping() || withinGrace()) return;
+      hardReset();
+    }, {passive:true});
+  }
+
+  // Window resize fallback (older browsers)
+  addEventListener("resize",()=>{
+    const dH=Math.abs(innerHeight - S.lastH);
+    const dW=Math.abs(innerWidth  - S.lastW);
+    S.lastH=innerHeight; S.lastW=innerWidth;
+    const keyboardLikely = (dH>60 && dW<40) && (isTyping() || withinGrace());
+    if(keyboardLikely) return;
+    if(!isTyping() && !withinGrace()) hardReset();
+  });
+
+  // Orientation change — ignore if typing/grace
+  addEventListener("orientationchange",()=>{
+    if(isTyping() || withinGrace()) return;
+    hardReset();
+  });
+
+  // Visibility and pagehide — ignore if typing/grace
+  document.addEventListener("visibilitychange",()=>{
+    if(document.hidden){
+      if(isTyping() || withinGrace()) return;
+      hardReset();
+    }
+  });
+  addEventListener("pagehide", (e)=>{
+    if(isTyping() || withinGrace()) return;
+    hardReset();
+  });
+
+  // Forbidden keys — always strict
+  addEventListener("keydown",(e)=>{
+    const forb = ["F12","PrintScreen"];
+    const combo = (e.ctrlKey||e.metaKey) && /[SUPCXVA]/i.test(e.key);
+    if(forb.includes(e.key) || combo){ e.preventDefault(); hardReset(); }
+  },{capture:true});
+}
+
+/*================ LAYOUT HELPERS ================*/
+function layout(guideH, itemType){
+  const margin=W>900*DPR ? 28*DPR : 16*DPR;
+  const headerH=Math.max(62*DPR, H*0.095);
+  const guide=guideH ?? Math.max(H*0.18, 120*DPR);
+  const footerH=(itemType==="write") ? Math.max(150*DPR, H*0.22) : Math.max(88*DPR, H*0.12);
+  const contentTop=headerH+margin+guide+margin;
+  const contentH=H-contentTop-margin-footerH;
+  return {margin,headerH,guide,contentTop,contentH,footerH};
+}
+function drawHeader(timerMs){
+  const {margin,headerH}=layout(null,S.run[S.q]?.type);
+  const x0=margin,y0=margin,w=W-margin*2,h=headerH-margin*1.2;
+  glass(x0,y0,w,h,0,true);
+  setFont(BASE*DPR,900); x.fillStyle=WHITE; x.textBaseline="middle"; x.textAlign="left";
+  x.fillText(TITLE, x0+14*DPR, y0+h/2);
+  if(S.mode==="quiz"){
+    const s=Math.ceil((timerMs||0)/1000); const t=`${s}s`;
+    const tw=x.measureText(t).width+24*DPR, th=22*DPR, px=x0+w-tw-12*DPR, py=y0+(h-th)/2;
+    glass(px,py,tw,th,1,false); setFont(BASE*DPR,800); x.textAlign="center"; x.fillText(t,px+tw/2,py+th/2);
+  }
+}
+function drawGuide(prompt,pill,previewTxt,itemType){
+  const {margin,headerH}=layout(null,itemType);
+  const x0=margin,y0=headerH+margin,w=W-margin*2;
+  const lines=wrap(prompt,w-32*DPR,BASE*DPR);
+  const pillLines = pill ? wrap(pill, w-64*DPR, BASE*DPR) : [];
+  const top=12*DPR, gap=8*DPR, prH=lines.length*(BASE*DPR*1.2), pillH=pill? (pillLines.length*(BASE*DPR*1.25)+18*DPR) : 0;
+  const prevH=previewTxt? (BASE*DPR*1.6) : 0;
+  const h=top+prH+(pill? (gap+pillH):0)+(previewTxt?(gap+prevH):0)+top;
+  glass(x0,y0,w,h,2,true);
+  x.fillStyle=WHITE; x.textBaseline="top"; x.textAlign="center"; setFont(BASE*DPR,900);
+  lines.forEach((ln,i)=> x.fillText(ln, x0+w/2, y0+top+i*(BASE*DPR*1.2)));
+  if(pill){
+    const pw=w-32*DPR, ph=pillH, px=x0+(w-pw)/2, py=y0+top+prH+gap; glass(px,py,pw,ph,3,false);
+    setFont(BASE*DPR,700); x.textAlign="left"; x.textBaseline="top";
+    const startX=px+12*DPR, startY=py+9*DPR, lh=BASE*DPR*1.25;
+    pillLines.forEach((ln,i)=> x.fillText(ln,startX,startY+i*lh));
+  }
+  if(previewTxt){ const py=y0+h-top-prevH; setFont(BASE*DPR,600); x.textAlign="center"; x.fillStyle=SUB; x.fillText(previewTxt, x0+w/2, py); }
+  return h;
+}
+function drawTracker(footerBox){
+  const cols=QUESTIONS_PER_RUN, r=Math.max(6*DPR,9*DPR), gap=r*1.9;
+  const totalW=cols*(r*2)+(cols-1)*gap;
+  const x0=footerBox.x+(footerBox.w-totalW)/2, y0=footerBox.y+footerBox.h-r-10*DPR;
+  for(let i=0;i<cols;i++){
+    const cx=x0+i*(r*2+gap)+r, cy=y0;
+    let col="rgba(255,255,255,0.35)";
+    if(i<S.q) col=S.tracker[i]?"rgba(0,255,170,0.95)":"rgba(255,90,90,0.95)";
+    else if(i===S.q) col="rgba(255,255,255,0.9)";
+    x.beginPath(); x.arc(cx,cy,r,0,Math.PI*2); x.fillStyle=col; x.fill();
+  }
+}
+
+/*================ FEEDBACK =================*/
+function drawFeedback(ok){
+  const msg = ok ? "✅ Correct!" : "❌ Incorrect!";
+  const col = ok ? "rgba(0,200,130,0.22)" : "rgba(255,80,80,0.22)";
+  const stroke = ok ? "rgba(0,255,180,0.55)" : "rgba(255,120,120,0.65)";
+  const w = Math.min(W*0.8, 420*DPR), h = 44*DPR;
+  const x0=(W-w)/2, y0= Math.max(10*DPR, H*0.14);
+  x.save();
+  x.shadowColor="rgba(0,0,0,0.4)"; x.shadowBlur=16*DPR; x.shadowOffsetY=4*DPR;
+  rrect(x0,y0,w,h,12*DPR); x.fillStyle=col; x.fill();
+  x.shadowBlur=0; x.shadowOffsetY=0; x.strokeStyle=stroke; x.lineWidth=1.6*DPR; x.stroke();
+  setFont(BASE*DPR,900); x.fillStyle=WHITE; x.textAlign="center"; x.textBaseline="middle";
+  x.fillText(msg, x0+w/2, y0+h/2);
+  x.restore();
+}
+
+/*================ RENDERERS =================*/
+const HITS=[];
+function addHit(ax,ay,w,h,fn){ HITS.push({x:ax,y:ay,w,h,fn}); }
+
+function renderMCQ(q){
+  drawHeader(S.timerLeft);
+  const gh=drawGuide(q.prompt,q.pill,null,"mcq");
+  const {margin,contentTop,contentH,footerH}=layout(gh,"mcq");
+  const x0=margin,y0=contentTop,w=W-margin*2,h=contentH;
+  glass(x0,y0,w,h,0,true);
+  const inPad=14*DPR, gap=12*DPR, rowH=Math.floor((h-inPad*2-gap*2)/3);
+  let oy=y0+inPad; HITS.length=0;
+  for(let i=0;i<3;i++){
+    glass(x0+inPad,oy,w-inPad*2,rowH,1+i,true);
+    setFont(BASE*DPR,800); x.fillStyle=WHITE; x.textAlign="left"; x.textBaseline="middle";
+    x.fillText(String.fromCharCode(65+i)+")  "+q.options[i], x0+inPad+12*DPR, oy+rowH/2);
+    addHit(x0+inPad-10*DPR,oy-10*DPR,w-inPad*2+20*DPR,rowH+20*DPR, ()=>submitAnswer(i===q.answerIndex));
+    oy+=rowH+gap;
+  }
+  const fx=margin, fy=H-footerH+8*DPR, fw=W-margin*2, fh=footerH-16*DPR;
+  glass(fx,fy,fw,fh,4,true); drawTracker({x:fx,y:fy,w:fw,h:fh});
+}
+
+function renderMatching(q){
+  drawHeader(S.timerLeft);
+  const gh=drawGuide(q.prompt,q.pill,null,"matching");
+  const {margin,contentTop,contentH,footerH}=layout(gh,"matching");
+  const x0=margin,y0=contentTop,w=W-margin*2,h=contentH;
+  glass(x0,y0,w,h,0,true);
+  const inPad=16*DPR, gap=26*DPR, colW=(w-inPad*2-gap)/2, rowH=Math.min(86*DPR,Math.max(60*DPR,(h-inPad*2-gap*2)/3));
+  let ly=y0+inPad; HITS.length=0;
+  const Lpos=[], Rpos=[];
+  for(let i=0;i<3;i++){
+    const lx=x0+inPad, rx=lx+colW+gap;
+    const leftUsed=q.usedLeft[i];
+    glass(lx,ly,colW,rowH, leftUsed?0:1, true);
+    setFont(BASE*DPR,800); x.fillStyle= leftUsed ? "rgba(255,255,255,0.45)" : WHITE; x.textAlign="left"; x.textBaseline="middle"; x.fillText(q.left[i], lx+12*DPR, ly+rowH/2);
+    if(q.selLeft===i){ x.save(); rrect(lx,ly,colW,rowH,14*DPR); x.strokeStyle="rgba(255,225,0,0.95)"; x.lineWidth=2.8*DPR; x.stroke(); x.restore(); }
+    if(!leftUsed) addHit(lx-10*DPR,ly-10*DPR,colW+20*DPR,rowH+20*DPR, ()=>{ q.selLeft = (q.selLeft===i ? null : i); });
+    Lpos[i]={cx:lx+colW, cy:ly+rowH/2};
+    const rightUsed=q.usedRight[i];
+    glass(rx,ly,colW,rowH, rightUsed?0:3, true);
+    setFont(BASE*DPR,900); x.fillStyle= rightUsed ? "rgba(255,255,255,0.45)" : WHITE; x.textAlign="center"; x.fillText(q.right[i], rx+colW/2, ly+rowH/2);
+    if(q.selRight===i){ x.save(); rrect(rx,ly,colW,rowH,14*DPR); x.strokeStyle="rgba(130,200,255,0.95)"; x.lineWidth=2.6*DPR; x.stroke(); x.restore(); }
+    if(!rightUsed) addHit(rx-10*DPR,ly-10*DPR,colW+20*DPR,rowH+20*DPR, ()=>{
+      if(q.selLeft==null){ q.selRight = (q.selRight===i ? null : i); return; }
+      const leftIdx=q.selLeft, rightIdx=i;
+      const ok=(q.map[rightIdx]===leftIdx);
+      q.links.push({L:leftIdx,R:rightIdx});
+      q.usedLeft[leftIdx]=true; q.usedRight[rightIdx]=true;
+      q.pairs.push(ok); q.selected.push([leftIdx,rightIdx]);
+      q.selLeft=null; q.selRight=null;
+      if(q.selected.length>=3) submitAnswer(q.pairs.every(Boolean));
+    });
+    Rpos[i]={cx:rx, cy:ly+rowH/2};
+    ly+=rowH+gap;
+  }
+  x.save();
+  x.lineWidth=3*DPR; x.lineCap="round";
+  for(const ln of q.links){
+    const lp=Lpos[ln.L], rp=Rpos[ln.R];
+    if(!lp || !rp) continue;
+    const midx=(lp.cx+rp.cx)/2;
+    const g=x.createLinearGradient(lp.cx,lp.cy,rp.cx,rp.cy);
+    g.addColorStop(0,"rgba(255,225,0,0.95)");
+    g.addColorStop(1,"rgba(130,200,255,0.95)");
+    x.strokeStyle=g;
+    x.beginPath();
+    x.moveTo(lp.cx, lp.cy);
+    x.bezierCurveTo(midx, lp.cy, midx, rp.cy, rp.cx, rp.cy);
+    x.stroke();
+  }
+  x.restore();
+
+  const fx=margin, fy=H-footerH+8*DPR, fw=W-margin*2, fh=footerH-16*DPR;
+  glass(fx,fy,fw,fh,4,true); drawTracker({x:fx,y:fy,w:fw,h:fh});
+}
+
+function renderPlural(q){
+  drawHeader(S.timerLeft);
+  const gh=drawGuide(q.prompt,q.pill,null,"plural");
+  const {margin,contentTop,contentH,footerH}=layout(gh,"plural");
+  const x0=margin,y0=contentTop,w=W-margin*2,h=contentH;
+  glass(x0,y0,w,h,0,true);
+  const inPad=14*DPR, gap=12*DPR, rowH=Math.floor((h-inPad*2-gap*2)/3);
+  let oy=y0+inPad; HITS.length=0;
+  for(let i=0;i<3;i++){
+    glass(x0+inPad,oy,w-inPad*2,rowH,1+i,true);
+    setFont(BASE*DPR,800); x.fillStyle=WHITE; x.textAlign="left"; x.textBaseline="middle";
+    x.fillText(String.fromCharCode(65+i)+")  "+q.options[i], x0+inPad+12*DPR, oy+rowH/2);
+    addHit(x0+inPad-10*DPR,oy-10*DPR,w-inPad*2+20*DPR,rowH+20*DPR, ()=>submitAnswer(i===q.answerIndex));
+    oy+=rowH+gap;
+  }
+  const fx=margin, fy=H-footerH+8*DPR, fw=W-margin*2, fh=footerH-16*DPR;
+  glass(fx,fy,fw,fh,4,true); drawTracker({x:fx,y:fy,w:fw,h:fh});
+}
+
+function renderWrite(q){
+  drawHeader(S.timerLeft);
+  const gh=drawGuide(q.prompt,q.pill,"Type your sentence below. Use correct word order and spelling.","write");
+  const {margin,contentTop,contentH,footerH}=layout(gh,"write");
+  const x0=margin,y0=contentTop,w=W-margin*2,h=contentH;
+  glass(x0,y0,w,h,0,true);
+  const fx=margin, fy=H-footerH+8*DPR, fw=W-margin*2, fh=footerH-16*DPR;
+  glass(fx,fy,fw,fh,4,true);
+  const inputPad=16*DPR, inH=Math.max(40*DPR, 42*DPR), inW=fw-inputPad*2-120*DPR, inX=fx+inputPad, inY=fy+inputPad;
+  INPUT.classList.add("visible");
+  INPUT.style.left = (inX/DPR)+"px";
+  INPUT.style.top  = (inY/DPR)+"px";
+  INPUT.style.width= (inW/DPR)+"px";
+  INPUT.style.height=(inH/DPR)+"px";
+  INPUT.placeholder="e.g., He usually drives to work on Mondays.";
+  const bw=108*DPR, bh=inH, bx=inX+inW+inputPad, by=inY;
+  glass(bx,by,bw,bh,3,true);
+  setFont(BASE*DPR,900); x.textAlign="center"; x.textBaseline="middle"; x.fillStyle=WHITE; x.fillText("Submit", bx+bw/2, by+bh/2);
+  addHit(bx-8*DPR,by-8*DPR,bw+16*DPR,bh+16*DPR, ()=>{
+    const val = INPUT.value || "";
+    const ok = validateWrite(val, q);
+    INPUT.value="";
+    INPUT.blur();
+    INPUT.classList.remove("visible");
+    S.typing=false;
+    submitAnswer(ok);
+  });
+  // Mark typing true each frame while WRITE is visible
+  S.typing = true;
+  drawTracker({x:fx,y:fy,w:fw,h:fh});
+}
+
+/*================ VALIDATOR (same flexible) ================*/
+function norm(s){ return String(s||"").toLowerCase().replace(/[.!?]+$/,"").replace(/[,;:]/g,"").replace(/\s+/g," ").trim(); }
+function tokenize(s){ return norm(s).split(" ").filter(Boolean).filter(w=>!["a","an","the"].includes(w)); }
+function containsPhrase(hay, needle){
+  const H = tokenize(hay).filter(w=>w!=="to");
+  const N = tokenize(needle).filter(w=>w!=="to");
+  let i=0; for(const w of H){ if(w===N[i]) i++; if(i>=N.length) return true; } return N.length===0;
+}
+function validateWrite(user, spec){
+  const subj=spec.subj.s.toLowerCase(), isP3=spec.subj.p3, verb=spec.verb.toLowerCase();
+  const ad=spec.ad.toLowerCase(), neg=!!spec.neg, ctx=spec.context, time=spec.time;
+  const s = norm(user); if(!s) return false;
+  const toks = tokenize(s); if(toks[0] !== subj) return false;
+  const hasDont = s.includes("don't") || s.includes("do not");
+  const hasDoesnt = s.includes("doesn't") || s.includes("does not");
+  if(neg){ if(isP3 && !hasDoesnt) return false; if(!isP3 && !hasDont) return false; } else { if(hasDont||hasDoesnt) return false; }
+  const baseForm = verb, thirdForm = p3(verb);
+  const hasBase = toks.includes(baseForm), hasThird = toks.includes(thirdForm);
+  if(neg){ if(!hasBase) return false; } else { if(isP3 && !hasThird) return false; if(!isP3 && !hasBase) return false; }
+  const adIdx=toks.indexOf(ad), baseIdx=toks.indexOf(baseForm), thirdIdx=toks.indexOf(thirdForm);
+  const verbIdx = neg ? baseIdx : (isP3 ? thirdIdx : baseIdx);
+  if(adIdx===-1 || verbIdx===-1 || !(adIdx < verbIdx)) return false;
+  return containsPhrase(s, ctx) && containsPhrase(s, time);
+}
+
+/*================ FLOW + FEEDBACK ================*/
+function timeLimitFor(item){ return (item && item.type==="write") ? TIME_PER_Q_WRITE : TIME_PER_Q_DEFAULT; }
+function submitAnswer(ok){ S.feedback={ok,until:performance.now()+1000}; S.pendingAdvance={ok}; }
+function advanceFromFeedback(){
+  if(!S.pendingAdvance) return;
+  S.tracker[S.q]=S.pendingAdvance.ok; if(S.pendingAdvance.ok) S.correct++;
+  S.pendingAdvance=null; S.feedback=null;
+  S.q++; if(S.q>=QUESTIONS_PER_RUN){ S.mode="finish"; INPUT.classList.remove("visible"); INPUT.value=""; S.typing=false; return; }
+  S.qStart=performance.now(); S.timerLeft=timeLimitFor(S.run[S.q]);
+  if(S.run[S.q].type!=="write"){ INPUT.classList.remove("visible"); INPUT.value=""; S.typing=false; }
+}
+
+function drawStart(){
+  bg();
+  INPUT.classList.remove("visible"); INPUT.value=""; S.typing=false;
+  const margin=16*DPR, w=Math.min(W-margin*2, Math.max(360*DPR, W*0.92)), h=Math.min(H-margin*2, Math.max(460*DPR, H*0.72));
+  const x0=(W-w)/2, y0=(H-h)/2; glass(x0,y0,w,h,0,true);
+  setFont(BASE*DPR,900); x.fillStyle=WHITE; x.textAlign="center"; x.textBaseline="top"; x.fillText(TITLE, x0+w/2, y0+18*DPR);
+  setFont(BASE*DPR,700); x.fillText("Enter the access code to start.", x0+w/2, y0+18*DPR+36*DPR);
+  const code = S.code.replace(/./g,"•") || "----"; const cw=Math.max(220*DPR, 200*DPR), ch=40*DPR, cx=x0+(w-cw)/2, cy=y0+h*0.42;
+  glass(cx,cy,cw,ch,2,false); setFont(BASE*DPR,900); x.textBaseline="middle"; x.fillText(code, cx+cw/2, cy+ch/2);
+  const keys=["1","2","3","4","5","6","7","8","9","C","0","Start"];
+  const cols=3, keyW=Math.min(96*DPR,(w-48*DPR)/3), keyH=Math.max(50*DPR,40*DPR);
+  let ky=cy+ch+16*DPR, kx0=x0+(w-(keyW*cols+12*DPR*(cols-1)))/2; HITS.length=0;
+  for(let i=0;i<12;i++){ const r=Math.floor(i/3), c=i%3; const kx=kx0+c*(keyW+12*DPR), ky2=ky+r*(keyH+12*DPR);
+    glass(kx,ky2,keyW,keyH,3,true); setFont(BASE*DPR,900); x.textBaseline="middle"; x.fillText(keys[i], kx+keyW/2, ky2+keyH/2);
+    addHit(kx-6*DPR,ky2-6*DPR,keyW+12*DPR,keyH+12*DPR, ()=> onStartKey(keys[i]) );
+  }
+}
+function onStartKey(k){
+  if(k==="C") S.code="";
+  else if(k==="Start"){ if(S.code===ACCESS_CODE) beginRun(); else S.code=""; }
+  else if(S.code.length<8) S.code+=k;
+}
+function beginRun(){
+  S.bank = buildBank(); S.run = S.bank.slice(0,QUESTIONS_PER_RUN);
+  S.tracker = new Array(QUESTIONS_PER_RUN).fill(null);
+  S.correct=0; S.q=0; S.qStart=performance.now(); S.timerLeft=timeLimitFor(S.run[0]);
+  S.mode="quiz"; armSecurity();
+}
+function drawFinish(){
+  bg();
+  INPUT.classList.remove("visible"); INPUT.value=""; S.typing=false;
+  const margin=16*DPR, w=Math.min(W-margin*2, Math.max(360*DPR, W*0.92)), h=Math.min(H-margin*2, Math.max(320*DPR, H*0.6));
+  const x0=(W-w)/2, y0=(H-h)/2; glass(x0,y0,w,h,0,true);
+  setFont(BASE*DPR,900); x.fillStyle=WHITE; x.textAlign="center"; x.textBaseline="top"; x.fillText("Quiz Finished", x0+w/2, y0+18*DPR);
+  const score5=(S.tracker.filter(Boolean).length/QUESTIONS_PER_RUN)*5; setFont(BASE*DPR,800); x.fillText(`Your final score is ${score5.toFixed(1)} / 5.0`, x0+w/2, y0+18*DPR+36*DPR);
+  setFont(BASE*DPR,700); x.fillText("Security active; typing won't reset.", x0+w/2, y0+h-28*DPR);
+}
+function tap(evt){
+  evt.preventDefault();
+  const r=c.getBoundingClientRect(); const px=((evt.touches?evt.touches[0].clientX:evt.clientX)-r.left)*DPR, py=((evt.touches?evt.touches[0].clientY:evt.clientY)-r.top)*DPR;
+  for(let i=HITS.length-1;i>=0;i--){ const h=HITS[i]; if(px>=h.x && px<=h.x+h.w && py>=h.y && py<=h.y+h.h){ h.fn(); return; } }
+}
+function loop(ts){
+  bg();
+  if(S.mode==="quiz"){
+    const item=S.run[S.q], limit=timeLimitFor(item);
+    const el=ts - S.qStart; S.timerLeft=Math.max(0, limit - el);
+    if(S.timerLeft<=0){ S.tracker[S.q]=false; S.q++; if(S.q>=QUESTIONS_PER_RUN) S.mode="finish"; else { S.qStart=performance.now(); S.timerLeft=timeLimitFor(S.run[S.q]); } }
+    HITS.length=0;
+    if(item.type==="mcq") renderMCQ(item);
+    else if(item.type==="matching") renderMatching(item);
+    else if(item.type==="plural") renderPlural(item);
+    else { renderWrite(item); }
+    if(S.feedback){ drawFeedback(S.feedback.ok); if(performance.now()>=S.feedback.until){ advanceFromFeedback(); } }
+  } else if(S.mode==="start") drawStart();
+  else drawFinish();
+  requestAnimationFrame(loop);
+}
+
+/*================ BOOT =================*/
+resize(); addEventListener("resize", resize);
+c.addEventListener("click", tap); c.addEventListener("touchstart", tap, {passive:false});
+requestAnimationFrame(loop);
+
+// helper
+window.p3 = function(v){ if (/(?:ch|sh|ss|x|z|o)$/i.test(v)) return v+"es";
+  if (v.endsWith("y") && !"aeiou".includes(v.slice(-2,-1))) return v.slice(0,-1)+"ies";
+  return v+"s"; }
+
+})();
+</script>
+</body>
+</html>
